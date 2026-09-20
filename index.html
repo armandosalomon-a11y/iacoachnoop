@@ -107,15 +107,15 @@
   </div>
 
  <script>
-  const SYSTEM_PROMPT = `Eres el coach de nutrición y entrenamiento personal de Armando. Sé directo, breve, práctico y enfócate en sus metas de masa muscular, nutrición y rendimiento. Revisa siempre el historial anterior para recordar qué ha comido o qué entrenamientos ha realizado.`;
+  const SYSTEM_PROMPT = `Eres el coach de nutrición y entrenamiento personal de Armando. Sé directo, breve, práctico, profesional y respetuoso. Enfócate en sus metas de masa muscular, nutrición y rendimiento. Consulta siempre el historial previo para recordar qué ha comido o entrenado.`;
 
-  // Array donde se guardará todo el historial de la conversación
-  let chatHistory = [];
+  // Cargar historial guardado o iniciar uno nuevo
+  let chatHistory = JSON.parse(localStorage.getItem('MY_COACH_CHAT_HISTORY')) || [];
 
   function getApiKey() {
     let key = localStorage.getItem('MY_PRIVATE_GEMINI_KEY');
     if (!key) {
-      key = prompt("🔒 Acceso Privado: Pega tu API Key de Gemini (Solo se guardará en este iPhone/Navegador):");
+      key = prompt("🔒 Acceso Privado: Pega tu API Key de Gemini:");
       if (key && key.trim() !== "") {
         localStorage.setItem('MY_PRIVATE_GEMINI_KEY', key.trim());
       }
@@ -124,12 +124,30 @@
   }
 
   function resetKey() {
-    const nuevaKey = prompt("Cambiar/Actualizar tu API Key de Gemini:", localStorage.getItem('MY_PRIVATE_GEMINI_KEY') || '');
-    if (nuevaKey !== null && nuevaKey.trim() !== "") {
-      localStorage.setItem('MY_PRIVATE_GEMINI_KEY', nuevaKey.trim());
-      alert("API Key guardada correctamente.");
+    const opcion = confirm("¿Qué deseas hacer?\n\n[Aceptar] = Borrar historial de chat (Borrón y cuenta nueva)\n[Cancelar] = Cambiar API Key");
+    if (opcion) {
+      localStorage.removeItem('MY_COACH_CHAT_HISTORY');
+      chatHistory = [];
+      document.getElementById('chat').innerHTML = '<div class="msg bot">Historial borrado. ¡Empezamos de cero, Armando! ¿Qué comiste hoy?</div>';
+      alert("Historial reiniciado.");
+    } else {
+      const nuevaKey = prompt("Cambiar API Key de Gemini:", localStorage.getItem('MY_PRIVATE_GEMINI_KEY') || '');
+      if (nuevaKey !== null && nuevaKey.trim() !== "") {
+        localStorage.setItem('MY_PRIVATE_GEMINI_KEY', nuevaKey.trim());
+        alert("API Key actualizada.");
+      }
     }
   }
+
+  // Cargar mensajes guardados en la pantalla al abrir la app
+  window.onload = function() {
+    if (chatHistory.length > 0) {
+      chatHistory.forEach(msg => {
+        const sender = msg.role === 'user' ? 'user' : 'bot';
+        appendMessage(msg.parts[0].text, sender);
+      });
+    }
+  };
 
   async function enviarMensaje() {
     const input = document.getElementById('userInput');
@@ -143,19 +161,18 @@
       return;
     }
 
-    // 1. Mostrar mensaje en pantalla
     appendMessage(text, 'user');
     input.value = '';
     sendBtn.disabled = true;
 
-    // 2. Agregar mensaje del usuario al historial
+    // Guardar mensaje del usuario
     chatHistory.push({
       role: 'user',
       parts: [{ text: text }]
     });
+    localStorage.setItem('MY_COACH_CHAT_HISTORY', JSON.stringify(chatHistory));
 
     try {
-      // 3. Crear la estructura con System Instruction e Historial completo
       const requestBody = {
         systemInstruction: {
           parts: [{ text: SYSTEM_PROMPT }]
@@ -174,11 +191,12 @@
       if (data.candidates && data.candidates[0].content.parts[0].text) {
         const reply = data.candidates[0].content.parts[0].text;
         
-        // 4. Agregar la respuesta del modelo al historial
+        // Guardar respuesta del bot
         chatHistory.push({
           role: 'model',
           parts: [{ text: reply }]
         });
+        localStorage.setItem('MY_COACH_CHAT_HISTORY', JSON.stringify(chatHistory));
 
         appendMessage(reply, 'bot');
       } else {
